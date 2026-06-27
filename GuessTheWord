@@ -1,0 +1,244 @@
+
+
+import random
+import string
+import tkinter as tk
+from tkinter import font as tkfont
+
+
+WORD_BANK = [
+    ("PYTHON", "Programming language named after a snake"),
+    ("GALAXY", "A massive system of stars and planets"),
+    ("SHADOW", "Darkness cast when light is blocked"),
+    ("PHOENIX", "Mythical bird that rises from ashes"),
+    ("CIPHER", "A secret code or method of encryption"),
+    ("LANTERN", "Portable light source, often carried at night"),
+    ("ECLIPSE", "When one celestial body blocks another"),
+    ("WHISPER", "A very quiet way of speaking"),
+    ("MIDNIGHT", "The middle of the night, 12 AM"),
+    ("OBSIDIAN", "Dark volcanic glass"),
+    ("NEBULA", "A cloud of gas and dust in space"),
+    ("LABYRINTH", "A complex maze"),
+    ("THUNDER", "The sound that follows lightning"),
+    ("GRAVITY", "The force that pulls objects together"),
+    ("MYSTERY", "Something unexplained or puzzling"),
+    ("CRYSTAL", "A clear, often sparkling mineral"),
+    ("VOYAGER", "One who travels, or a famous space probe"),
+    ("SHADOWBOX", "A framed display case for objects"),
+    ("NOCTURNE", "A musical piece evoking night"),
+    ("QUASAR", "An extremely bright, distant celestial object"),
+]
+
+MAX_WRONG_GUESSES = 6
+
+
+COLORS = {
+    "bg": "#121212",
+    "panel": "#1c1c1f",
+    "accent": "#7c5cff",
+    "accent_dim": "#4b3a99",
+    "text": "#eaeaea",
+    "text_dim": "#9a9aa5",
+    "correct": "#4ade80",
+    "wrong": "#f87171",
+    "key_default": "#2a2a30",
+    "key_hover": "#3a3a44",
+    "key_correct": "#27663f",
+    "key_wrong": "#7a2e2e",
+    "border": "#33333a",
+}
+
+
+class WordGuessGame(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Guess the Word")
+        self.configure(bg=COLORS["bg"])
+        self.geometry("780x640")
+        self.minsize(640, 560)
+
+        # Fonts
+        self.title_font = tkfont.Font(family="Helvetica", size=26, weight="bold")
+        self.word_font = tkfont.Font(family="Courier New", size=32, weight="bold")
+        self.label_font = tkfont.Font(family="Helvetica", size=12)
+        self.hint_font = tkfont.Font(family="Helvetica", size=12, slant="italic")
+        self.key_font = tkfont.Font(family="Helvetica", size=12, weight="bold")
+        self.status_font = tkfont.Font(family="Helvetica", size=16, weight="bold")
+
+        self.key_buttons = {}
+        self.secret_word = ""
+        self.hint = ""
+        self.guessed_letters = set()
+        self.wrong_guesses = 0
+        self.game_over = False
+
+        self._build_layout()
+        self.new_game()
+
+        self.bind("<Key>", self._on_keypress)
+
+    # ---------------------------------------------------------------- UI ---
+    def _build_layout(self):
+        # Header
+        header = tk.Frame(self, bg=COLORS["bg"])
+        header.pack(fill="x", pady=(20, 10))
+
+        tk.Label(
+            header, text="GUESS THE WORD", font=self.title_font,
+            bg=COLORS["bg"], fg=COLORS["accent"]
+        ).pack()
+
+        self.hint_label = tk.Label(
+            header, text="", font=self.hint_font,
+            bg=COLORS["bg"], fg=COLORS["text_dim"], wraplength=600
+        )
+        self.hint_label.pack(pady=(6, 0))
+
+        # Status / lives
+        self.status_label = tk.Label(
+            self, text="", font=self.status_font, bg=COLORS["bg"], fg=COLORS["text"]
+        )
+        self.status_label.pack(pady=(6, 0))
+
+        # Word display panel
+        word_panel = tk.Frame(self, bg=COLORS["panel"], highlightthickness=1,
+                               highlightbackground=COLORS["border"])
+        word_panel.pack(pady=18, padx=30, fill="x")
+
+        self.word_label = tk.Label(
+            word_panel, text="", font=self.word_font,
+            bg=COLORS["panel"], fg=COLORS["text"], pady=20
+        )
+        self.word_label.pack()
+
+        # Message label (win/lose/feedback)
+        self.message_label = tk.Label(
+            self, text="", font=self.label_font, bg=COLORS["bg"], fg=COLORS["text_dim"]
+        )
+        self.message_label.pack(pady=(0, 8))
+
+        # Keyboard
+        keyboard_frame = tk.Frame(self, bg=COLORS["bg"])
+        keyboard_frame.pack(pady=6)
+
+        rows = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"]
+        for row_letters in rows:
+            row_frame = tk.Frame(keyboard_frame, bg=COLORS["bg"])
+            row_frame.pack(pady=4)
+            for letter in row_letters:
+                btn = tk.Button(
+                    row_frame, text=letter, width=4, height=2,
+                    font=self.key_font, bg=COLORS["key_default"],
+                    fg=COLORS["text"], activebackground=COLORS["key_hover"],
+                    relief="flat", bd=0, cursor="hand2",
+                    command=lambda l=letter: self.guess_letter(l)
+                )
+                btn.pack(side="left", padx=3)
+                self.key_buttons[letter] = btn
+
+        # Bottom controls
+        controls = tk.Frame(self, bg=COLORS["bg"])
+        controls.pack(pady=20)
+
+        self.new_game_btn = tk.Button(
+            controls, text="🔁  New Game", font=self.label_font,
+            bg=COLORS["accent"], fg="#0d0d0d", activebackground=COLORS["accent_dim"],
+            relief="flat", bd=0, padx=18, pady=8, cursor="hand2",
+            command=self.new_game
+        )
+        self.new_game_btn.pack()
+
+        footer = tk.Label(
+            self, text="Type on your keyboard or click letters above",
+            font=("Helvetica", 9), bg=COLORS["bg"], fg=COLORS["text_dim"]
+        )
+        footer.pack(pady=(0, 10))
+
+    # ----------------------------------------------------------- gameplay --
+    def new_game(self):
+        self.secret_word, self.hint = random.choice(WORD_BANK)
+        self.secret_word = self.secret_word.upper()
+        self.guessed_letters = set()
+        self.wrong_guesses = 0
+        self.game_over = False
+
+        self.hint_label.config(text=f"Hint: {self.hint}")
+        self.message_label.config(text="", fg=COLORS["text_dim"])
+        self._update_status()
+        self._update_word_display()
+
+        for letter, btn in self.key_buttons.items():
+            btn.config(
+                state="normal",
+                bg=COLORS["key_default"],
+                disabledforeground=COLORS["text_dim"],
+            )
+
+    def guess_letter(self, letter):
+        letter = letter.upper()
+        if self.game_over or letter in self.guessed_letters:
+            return
+        if letter not in string.ascii_uppercase:
+            return
+
+        self.guessed_letters.add(letter)
+        btn = self.key_buttons.get(letter)
+
+        if letter in self.secret_word:
+            if btn:
+                btn.config(bg=COLORS["key_correct"], state="disabled")
+        else:
+            self.wrong_guesses += 1
+            if btn:
+                btn.config(bg=COLORS["key_wrong"], state="disabled")
+
+        self._update_word_display()
+        self._update_status()
+        self._check_game_over()
+
+    def _update_word_display(self):
+        display = " ".join(
+            (letter if letter in self.guessed_letters else "_")
+            for letter in self.secret_word
+        )
+        self.word_label.config(text=display)
+
+    def _update_status(self):
+        remaining = MAX_WRONG_GUESSES - self.wrong_guesses
+        color = COLORS["correct"] if remaining > 2 else COLORS["wrong"]
+        self.status_label.config(
+            text=f"Tries left: {remaining}", fg=color
+        )
+
+    def _check_game_over(self):
+        word_letters = set(self.secret_word)
+        if word_letters.issubset(self.guessed_letters):
+            self.game_over = True
+            self.message_label.config(
+                text="🎉 You got it! Click 'New Game' to play again.",
+                fg=COLORS["correct"]
+            )
+            self._reveal_and_lock()
+        elif self.wrong_guesses >= MAX_WRONG_GUESSES:
+            self.game_over = True
+            self.word_label.config(text=" ".join(self.secret_word))
+            self.message_label.config(
+                text=f"💀 Out of tries! The word was \"{self.secret_word}\". Click 'New Game' to retry.",
+                fg=COLORS["wrong"]
+            )
+            self._reveal_and_lock()
+
+    def _reveal_and_lock(self):
+        for letter, btn in self.key_buttons.items():
+            if letter not in self.guessed_letters:
+                btn.config(state="disabled")
+
+    def _on_keypress(self, event):
+        char = event.char.upper()
+        if char in string.ascii_uppercase:
+            self.guess_letter(char)
+
+
+if __name__ == "__main__":
+    game = WordGuessGame()
+    game.mainloop()
